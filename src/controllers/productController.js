@@ -32,7 +32,18 @@ const createProduct = async (req, res) => {
 // 2. Get All Products (GET - Admin)
 const getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    const { search, category } = req.query;
+    let filter = {};
+
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
+    }
+
+    if (category) {
+      filter.category = category;
+    }
+
+    const products = await Product.find(filter).sort({ createdAt: -1 });
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -42,13 +53,24 @@ const getAllProducts = async (req, res) => {
 // Get All Product for Shop page
 const getShopData = async (req, res) => {
   try {
+    const { search, category } = req.query;
+    let filter = {};
+
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
+    }
+
+    if (category) {
+      filter.category = category;
+    }
+
     const siteFeatures = [
       { id: 1, title: "১০০% অরিজিনাল", icon: "ShieldCheck" },
       { id: 2, title: "সহজ রিটার্ন", icon: "RefreshCcw" },
       { id: 3, title: "দ্রুত ডেলিভারি", icon: "Truck" },
     ];
 
-    const products = await Product.find({}).sort({ createdAt: -1 });
+    const products = await Product.find(filter).sort({ createdAt: -1 });
 
     res.status(200).json({
       siteFeatures,
