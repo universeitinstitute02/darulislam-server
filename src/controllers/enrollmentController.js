@@ -125,8 +125,37 @@ const approveEnrollment = async (req, res) => {
   }
 };
 
+// Reject Enrollment Request
+const rejectEnrollment = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const enrollment = await Enrollment.findById(id);
+    if (!enrollment) {
+      return res.status(404).json({ message: "Enrollment record not found" });
+    }
+    if (enrollment.status !== "pending") {
+      return res
+        .status(400)
+        .json({ message: `This request is already ${enrollment.status}` });
+    }
+
+    enrollment.status = "rejected";
+    await enrollment.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Enrollment request has been rejected successfully.",
+      data: enrollment,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createEnrollmentRequest,
   getEnrollmentLogs,
   approveEnrollment,
+  rejectEnrollment,
 };
