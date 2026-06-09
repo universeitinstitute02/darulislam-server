@@ -1,6 +1,5 @@
 const Category = require("../models/Category");
 
-// Get All Categories (with course count)
 const getCategories = async (req, res) => {
   try {
     const categories = await Category.aggregate([
@@ -23,9 +22,6 @@ const getCategories = async (req, res) => {
           publishedCourses: 0,
         },
       },
-      {
-        $sort: { displayOrder: 1 },
-      },
     ]);
 
     res.status(200).json(categories);
@@ -34,30 +30,39 @@ const getCategories = async (req, res) => {
   }
 };
 
-// CREATE Category with Sub-categories (Admin)
 const createCategory = async (req, res) => {
   try {
-    const { name, icon, description, isActive, displayOrder, subCategories } =
-      req.body;
+    const { name, description, isActive, subCategories } = req.body;
 
     const categoryExists = await Category.findOne({ name });
     if (categoryExists) {
       return res.status(400).json({ message: "Category already exists" });
     }
 
+    if (!req.file) {
+      return res.status(400).json({ message: "Category image is required" });
+    }
+
+    const imageUrl = req.file.path;
+
     let formattedSubCategories = [];
-    if (subCategories && Array.isArray(subCategories)) {
-      formattedSubCategories = subCategories.map((sub) =>
-        typeof sub === "string" ? { name: sub } : sub,
-      );
+    if (subCategories) {
+      const parsedSub =
+        typeof subCategories === "string"
+          ? JSON.parse(subCategories)
+          : subCategories;
+      if (Array.isArray(parsedSub)) {
+        formattedSubCategories = parsedSub.map((sub) =>
+          typeof sub === "string" ? { name: sub } : sub,
+        );
+      }
     }
 
     const category = await Category.create({
       name,
-      icon,
+      image: imageUrl,
       description,
-      isActive,
-      displayOrder,
+      isActive: isActive === "false" ? false : true,
       subCategories: formattedSubCategories,
     });
 
@@ -67,7 +72,6 @@ const createCategory = async (req, res) => {
   }
 };
 
-// UPDATE Category & its Sub-categories (Admin)
 const updateCategory = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id);
@@ -88,7 +92,6 @@ const updateCategory = async (req, res) => {
   }
 };
 
-// DELETE Category (Admin)
 const deleteCategory = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id);

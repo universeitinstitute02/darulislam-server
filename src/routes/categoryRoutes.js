@@ -6,6 +6,7 @@ const {
   updateCategory,
   deleteCategory,
 } = require("../controllers/categoryController");
+const upload = require("../middlewares/uploadMiddleware");
 
 // Import both middlewares
 const { protect, admin } = require("../middlewares/authMiddleware");
@@ -14,7 +15,7 @@ const { protect, admin } = require("../middlewares/authMiddleware");
 router.get("/", getCategories);
 
 // POST request Admin Verify
-router.post("/", protect, admin, createCategory);
+router.post("/", protect, admin, upload.single("image"), createCategory);
 
 // Update & Delete Category (admin)
 router.put("/:id", protect, admin, updateCategory);

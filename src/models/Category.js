@@ -8,9 +8,9 @@ const categorySchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    icon: {
+    image: {
       type: String,
-      required: [true, "Please add an icon identifier or URL"],
+      required: [true, "Please add a category image URL"],
     },
     description: {
       type: String,
@@ -20,10 +20,6 @@ const categorySchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
-    },
-    displayOrder: {
-      type: Number,
-      default: 0,
     },
     subCategories: [
       {
