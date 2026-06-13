@@ -5,6 +5,7 @@ const {
   getCourses,
   updateCourse,
   deleteCourse,
+  toggleCourseFeatured,
   getTeacherCourses,
   getEducationPageData,
   getDynamicCategories,
@@ -13,17 +14,22 @@ const {
 const { protect, instructor } = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
 
-// Public route to get courses
-router.get("/", getCourses);
-// Get courses by categories for education page
-router.get("/education", getEducationPageData);
-// Dashboard Route (MUST BE ABOVE /:id)
-router.get("/teacher/my-courses", protect, instructor, getTeacherCourses);
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === "admin") {
+    next();
+  } else {
+    res.status(403).json({ message: "Not authorized as an admin" });
+  }
+};
 
+router.get("/", getCourses);
+router.get("/education", getEducationPageData);
+router.get("/teacher/my-courses", protect, instructor, getTeacherCourses);
 router.get("/categories", getDynamicCategories);
 router.get("/filter/:categoryName", getCoursesByCategoryName);
 
-// CRUD Routes for Instructors
+router.patch("/admin/featured/:id", protect, admin, toggleCourseFeatured);
+
 router.post(
   "/teacher/add-course",
   protect,
@@ -39,7 +45,6 @@ router.put(
   updateCourse,
 );
 
-// DELETE Course
 router.delete("/teacher/delete-course/:id", protect, instructor, deleteCourse);
 
 module.exports = router;

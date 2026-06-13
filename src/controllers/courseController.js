@@ -6,6 +6,7 @@ const createCourse = async (req, res) => {
     const {
       title,
       category,
+      subCategory,
       duration,
       courseType,
       price,
@@ -15,27 +16,25 @@ const createCourse = async (req, res) => {
       modules,
     } = req.body;
 
-    const thumbnail = req.file ? req.file.path : null;
-    if (!thumbnail) {
+    if (!req.file) {
       return res.status(400).json({ message: "Course thumbnail is required" });
     }
 
     let parsedDetails = {};
     if (details) {
-      parsedDetails =
-        typeof details === "string" ? JSON.parse(details) : details;
+      parsedDetails = typeof details === "string" ? JSON.parse(details) : details;
     }
 
     let parsedModules = [];
     if (modules) {
-      parsedModules =
-        typeof modules === "string" ? JSON.parse(modules) : modules;
+      parsedModules = typeof modules === "string" ? JSON.parse(modules) : modules;
     }
 
     const course = await Course.create({
       title,
-      image: thumbnail,
+      image: req.file.path,
       category,
+      subCategory,
       instructor: req.user._id,
       duration,
       courseType,
@@ -59,11 +58,17 @@ const getCourses = async (req, res) => {
     if (req.query.category) {
       filter.category = req.query.category;
     }
+    if (req.query.subCategory) {
+      filter.subCategory = req.query.subCategory;
+    }
+    if (req.query.isFeatured) {
+      filter.isFeatured = req.query.isFeatured === "true";
+    }
 
     const limitCount = req.query.limit ? parseInt(req.query.limit) : 0;
 
     const courses = await Course.find(filter)
-      .populate("category", "name icon")
+      .populate("category", "name image")
       .populate("instructor", "name email")
       .sort({ createdAt: -1 })
       .limit(limitCount);
@@ -85,8 +90,12 @@ const getEducationPageData = async (req, res) => {
 
     const groupedData = await Promise.all(
       fixedCategories.map(async (catName) => {
+        const targetCategory = await Category.findOne({ name: catName });
+        if (!targetCategory)
+          return { category: catName, type: "card", courses: [] };
+
         const courses = await Course.find({
-          category: catName,
+          category: targetCategory._id,
           isPublished: true,
         })
           .select("title image price oldPrice label details")
@@ -121,9 +130,9 @@ const getEducationPageData = async (req, res) => {
 
 const getTeacherCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ instructor: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const courses = await Course.find({ instructor: req.user._id })
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
 
     res.status(200).json(courses);
   } catch (error) {
@@ -144,8 +153,7 @@ const updateCourse = async (req, res) => {
     }
 
     if (details) {
-      const parsedDetails =
-        typeof details === "string" ? JSON.parse(details) : details;
+      const parsedDetails = typeof details === "string" ? JSON.parse(details) : details;
       updateData.details = {
         ...course.details,
         ...parsedDetails,
@@ -153,8 +161,7 @@ const updateCourse = async (req, res) => {
     }
 
     if (modules) {
-      updateData.modules =
-        typeof modules === "string" ? JSON.parse(modules) : modules;
+      updateData.modules = typeof modules === "string" ? JSON.parse(modules) : modules;
     }
 
     const updatedCourse = await Course.findByIdAndUpdate(
@@ -196,6 +203,30 @@ const deleteCourse = async (req, res) => {
   }
 };
 
+const toggleCourseFeatured = async (req, res) => {
+  try {
+    const { isFeatured } = req.body;
+
+    const course = await Course.findByIdAndUpdate(
+      req.params.id,
+      { isFeatured },
+      { new: true, runValidators: true }
+    );
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Course featured status updated successfully",
+      course,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getDynamicCategories = async (req, res) => {
   try {
     const categories = await Course.aggregate([
@@ -207,9 +238,18 @@ const getDynamicCategories = async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from: "categories",
+          localField: "_id",
+          foreignField: "_id",
+          as: "categoryDetails",
+        },
+      },
+      { $unwind: "$categoryDetails" },
+      {
         $project: {
           _id: 0,
-          name: "$_id",
+          name: "$categoryDetails.name",
           courseCount: 1,
         },
       },
@@ -218,11 +258,7 @@ const getDynamicCategories = async (req, res) => {
       },
     ]);
 
-    const activeCategories = categories.filter(
-      (cat) => cat.name && cat.name.trim() !== "",
-    );
-
-    res.status(200).json(activeCategories);
+    res.status(200).json(categories);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -232,10 +268,13 @@ const getCoursesByCategoryName = async (req, res) => {
   try {
     const { categoryName } = req.params;
 
+    const targetCategory = await Category.findOne({ name: categoryName });
+    if (!targetCategory) return res.status(200).json([]);
+
     const courses = await Course.find({
-      category: categoryName,
+      category: targetCategory._id,
       isPublished: true,
-    });
+    }).populate("instructor", "name email");
 
     res.status(200).json(courses);
   } catch (error) {
@@ -249,6 +288,7 @@ module.exports = {
   getTeacherCourses,
   updateCourse,
   deleteCourse,
+  toggleCourseFeatured,
   getEducationPageData,
   getDynamicCategories,
   getCoursesByCategoryName,

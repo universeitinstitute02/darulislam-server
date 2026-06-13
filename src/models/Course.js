@@ -45,6 +45,10 @@ const courseSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
     modules: [
       {
         title: {
@@ -84,4 +88,5 @@ const courseSchema = new mongoose.Schema(
   },
 );
 
-module.exports = mongoose.model("Course", courseSchema);
+module.exports =
+  mongoose.models.Course || mongoose.model("Course", courseSchema);

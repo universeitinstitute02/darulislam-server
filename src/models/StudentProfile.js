@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const Category = require("./Category");
 
 const studentProfileSchema = new mongoose.Schema(
   {
@@ -13,7 +14,7 @@ const studentProfileSchema = new mongoose.Schema(
     department: {
       type: mongoose.Schema.Types.ObjectId,
       required: [true, "Please select a department (Bivag)"],
-      ref: "Category",
+      ref: Category,
     },
     fatherName: { type: String },
     fatherMobile: { type: String },
@@ -21,8 +22,14 @@ const studentProfileSchema = new mongoose.Schema(
     motherName: { type: String },
     motherMobile: { type: String },
     motherJob: { type: String },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );
 
-module.exports = mongoose.model("StudentProfile", studentProfileSchema);
+module.exports =
+  mongoose.models.StudentProfile ||
+  mongoose.model("StudentProfile", studentProfileSchema);
