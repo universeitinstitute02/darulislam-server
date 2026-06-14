@@ -137,9 +137,27 @@ const deleteOrder = async (req, res) => {
   }
 };
 
+const getAllAdminOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({})
+      .populate("items.product", "name price image")
+      .populate("user", "name email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   placeOrder,
   getPendingOrders,
   updateOrderStatus,
   deleteOrder,
+  getAllAdminOrders,
 };

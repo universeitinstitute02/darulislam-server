@@ -5,6 +5,7 @@ const {
   getPendingOrders,
   updateOrderStatus,
   deleteOrder,
+  getAllAdminOrders,
 } = require("../controllers/orderController");
 const { protect, admin } = require("../middlewares/authMiddleware");
 
@@ -13,6 +14,8 @@ router.post("/checkout", protect, placeOrder);
 
 // admin pending orders get api
 router.get("/admin/pending", protect, admin, getPendingOrders);
+// admin get all confirmed orders
+router.get("/admin/all", protect, admin, getAllAdminOrders);
 
 router.put("/admin/:id/status", protect, admin, updateOrderStatus);
 router.delete("/admin/:id", protect, admin, deleteOrder);

@@ -5,44 +5,69 @@ const StudentProfile = require("../models/StudentProfile");
 // Get All Users with Search & Filter
 const getAllUsers = async (req, res) => {
   try {
-    const { role, search } = req.query;
+    const { role, search, status, department, experience } = req.query;
     let query = {};
 
     if (role) {
       query.role = role;
     }
 
-    // Dynamic text search for name and email matching
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } }
+        { email: { $regex: search, $options: "i" } },
       ];
     }
 
+    // 1. Fetch core users matching primary user credentials
     let users = await User.find(query)
       .select("-password")
       .sort({ createdAt: -1 });
 
     const userIds = users.map((user) => user._id);
 
+    // 2. Handle filtering when role is teacher
     if (role === "teacher") {
-      const profiles = await TeacherProfile.find({
-        user: { $in: userIds },
-      }).populate("department", "name");
+      let profileFilter = { user: { $in: userIds } };
 
-      users = users.map((user) => {
-        const profile = profiles.find(
-          (p) => p.user.toString() === user._id.toString()
-        );
-        return { ...user._doc, profileData: profile || null };
-      });
+      // Apply status parameter filter securely
+      if (status === "pending") {
+        profileFilter.isApproved = false;
+      } else if (status === "approved") {
+        profileFilter.isApproved = true;
+      }
+
+      // Apply department ObjectID match
+      if (department) {
+        profileFilter.department = department;
+      }
+
+      // Apply regex filtering for localized experience formats
+      if (experience) {
+        profileFilter.experience = { $regex: experience, $options: "i" };
+      }
+
+      const profiles = await TeacherProfile.find(profileFilter).populate(
+        "department",
+        "name",
+      );
+
+      // Merge results and discard users whose profiles didn't match the criteria
+      users = users
+        .map((user) => {
+          const profile = profiles.find(
+            (p) => p.user.toString() === user._id.toString(),
+          );
+          return profile ? { ...user._doc, profileData: profile } : null;
+        })
+        .filter((user) => user !== null);
     } else if (role === "student") {
+      // Handle fallback filtering mapping for student arrays if necessary
       const profiles = await StudentProfile.find({ user: { $in: userIds } });
 
       users = users.map((user) => {
         const profile = profiles.find(
-          (p) => p.user.toString() === user._id.toString()
+          (p) => p.user.toString() === user._id.toString(),
         );
         return { ...user._doc, profileData: profile || null };
       });
@@ -69,7 +94,10 @@ const getUserById = async (req, res) => {
     let profileData = null;
 
     if (user.role === "teacher") {
-      profileData = await TeacherProfile.findOne({ user: user._id }).populate("department", "name");
+      profileData = await TeacherProfile.findOne({ user: user._id }).populate(
+        "department",
+        "name",
+      );
     } else if (user.role === "student") {
       profileData = await StudentProfile.findOne({ user: user._id });
     }
@@ -78,8 +106,8 @@ const getUserById = async (req, res) => {
       success: true,
       data: {
         ...user._doc,
-        profileData
-      }
+        profileData,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -102,9 +130,9 @@ const adminUpdateUser = async (req, res) => {
     if (name) user.name = name;
     if (email) user.email = email;
     if (role) user.role = role;
-    
+
     if (req.file) {
-      user.profileImage = req.file.path; 
+      user.profileImage = req.file.path;
     }
     await user.save();
 
@@ -113,7 +141,9 @@ const adminUpdateUser = async (req, res) => {
       try {
         profileData = JSON.parse(profileData);
       } catch (parseError) {
-        return res.status(400).json({ message: "Invalid profileData JSON structure" });
+        return res
+          .status(400)
+          .json({ message: "Invalid profileData JSON structure" });
       }
     }
 
@@ -122,20 +152,20 @@ const adminUpdateUser = async (req, res) => {
       await TeacherProfile.findOneAndUpdate(
         { user: userId },
         { $set: profileData },
-        { new: true, runValidators: true, upsert: true }
+        { new: true, runValidators: true, upsert: true },
       );
     } else if (user.role === "student" && profileData) {
       await StudentProfile.findOneAndUpdate(
         { user: userId },
         { $set: profileData },
-        { new: true, runValidators: true, upsert: true }
+        { new: true, runValidators: true, upsert: true },
       );
     }
 
     res.status(200).json({
       success: true,
       message: "User and profile datasets updated successfully",
-      image: user.image
+      image: user.image,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -164,7 +194,7 @@ const adminDeleteUser = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "User and corresponding profile data permanently removed"
+      message: "User and corresponding profile data permanently removed",
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
