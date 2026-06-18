@@ -81,7 +81,7 @@ const getCourses = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limitCount);
 
-    res.status(200).json({ success: true, data: courses }); // 🔹 রেসপন্স স্ট্রাকচার সিঙ্ক
+    res.status(200).json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
