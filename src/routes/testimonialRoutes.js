@@ -1,24 +1,24 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 const {
-    createTestimonial,
-    getPublicTestimonials,
-    getAdminTestimonials,
-    updateApprovalStatus,
-    deleteTestimonial
-} = require('../controllers/testimonialController');
+  createTestimonial,
+  getPublicTestimonials,
+  getAdminTestimonials,
+  updateApprovalStatus,
+  deleteTestimonial,
+} = require("../controllers/testimonialController");
 
-const { protect, admin } = require('../middlewares/authMiddleware');
+const { protect, admin } = require("../middlewares/authMiddleware");
 
-// Public route for the homepage
-router.get('/', getPublicTestimonials);
+const upload = require("../middlewares/uploadMiddleware");
 
-// Student route to submit a review (Requires login)
-router.post('/', protect, createTestimonial);
+router.get("/", getPublicTestimonials);
 
-// Admin-only routes
-router.get('/admin', protect, admin, getAdminTestimonials);
-router.put('/:id/approve', protect, admin, updateApprovalStatus);
-router.delete('/:id', protect, admin, deleteTestimonial);
+router.post("/", protect, upload.single("identityImage"), createTestimonial);
+
+// Admin-only metrics routes
+router.get("/admin", protect, admin, getAdminTestimonials);
+router.put("/:id/approve", protect, admin, updateApprovalStatus);
+router.delete("/:id", protect, admin, deleteTestimonial);
 
 module.exports = router;
