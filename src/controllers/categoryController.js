@@ -242,13 +242,57 @@ const getCategoryByIdOrSlug = async (req, res) => {
       query.slug = idOrSlug;
     }
 
-    const category = await Category.findOne(query);
+    const category = await Category.findOne(query).lean();
     if (!category) {
       return res.status(404).json({ message: "Category parameters not found" });
     }
 
-    res.status(200).json(category);
+    const Course = require("../models/Course");
+    const Batch = require("../models/Batch");
+
+    const coursesUnderCategory = await Course.find({
+      category: category._id,
+      isPublished: true,
+    })
+      .select("_id subCategory")
+      .lean();
+
+    const courseIds = coursesUnderCategory.map((c) => c._id);
+
+    const upcomingBatches = await Batch.find({
+      course: { $in: courseIds },
+      status: "upcoming",
+    })
+      .select(
+        "course batchName maxSeats availableSeats admissionStartDate classStartDate status",
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const updatedSubCategories = category.subCategories.map((sub) => {
+      const targetCourseIds = coursesUnderCategory
+        .filter(
+          (c) =>
+            c.subCategory && c.subCategory.toString() === sub._id.toString(),
+        )
+        .map((c) => c._id.toString());
+
+      const matchedBatch = upcomingBatches.find((b) =>
+        targetCourseIds.includes(b.course.toString()),
+      );
+
+      return {
+        ...sub,
+        upcomingBatch: matchedBatch || null,
+      };
+    });
+
+    res.status(200).json({
+      ...category,
+      subCategories: updatedSubCategories,
+    });
   } catch (error) {
+    console.error("Error in getCategoryByIdOrSlug with Batch mapping:", error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -1,10 +1,18 @@
 const Batch = require("../models/Batch");
 const Course = require("../models/Course");
 
-// Create a new Batch (Admin)
+/// Create a new Batch (Admin)
 const createBatch = async (req, res) => {
   try {
-    const { course, teacher, batchName, maxSeats, status } = req.body;
+    const {
+      course,
+      teacher,
+      batchName,
+      maxSeats,
+      status,
+      admissionStartDate,
+      classStartDate,
+    } = req.body;
 
     const courseExists = await Course.findById(course);
     if (!courseExists) {
@@ -16,12 +24,52 @@ const createBatch = async (req, res) => {
       teacher: teacher || null,
       batchName,
       maxSeats,
-      status,
+      status: status || "upcoming",
+      admissionStartDate: admissionStartDate || null, // 🎯
+      classStartDate: classStartDate || null, // 🎯
+      availableSeats: maxSeats || 30,
     });
 
     res.status(201).json({
       success: true,
       message: "Batch created successfully",
+      data: batch,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update Batch Details (Admin)
+const updateBatch = async (req, res) => {
+  try {
+    const {
+      batchName,
+      teacher,
+      maxSeats,
+      status,
+      admissionStartDate,
+      classStartDate,
+    } = req.body;
+
+    const batch = await Batch.findById(req.params.id);
+    if (!batch) {
+      return res.status(404).json({ message: "Batch not found" });
+    }
+
+    if (batchName) batch.batchName = batchName;
+    if (maxSeats) batch.maxSeats = maxSeats;
+    if (status) batch.status = status;
+    if (admissionStartDate !== undefined)
+      batch.admissionStartDate = admissionStartDate; // 🎯
+    if (classStartDate !== undefined) batch.classStartDate = classStartDate; // 🎯
+    if (teacher !== undefined) batch.teacher = teacher;
+
+    await batch.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Batch configuration updated successfully",
       data: batch,
     });
   } catch (error) {
@@ -75,35 +123,6 @@ const getBatchById = async (req, res) => {
   }
 };
 
-// Update Batch Details (Admin)
-const updateBatch = async (req, res) => {
-  try {
-    const { batchName, teacher, maxSeats, status } = req.body;
-
-    const batch = await Batch.findById(req.params.id);
-    if (!batch) {
-      return res.status(404).json({ message: "Batch not found" });
-    }
-
-    if (batchName) batch.batchName = batchName;
-    if (maxSeats) batch.maxSeats = maxSeats;
-    if (status) batch.status = status;
-    
-    // Explicitly allow setting teacher or removing teacher configuration
-    if (teacher !== undefined) batch.teacher = teacher;
-
-    await batch.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Batch configuration updated successfully",
-      data: batch,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 // Delete a Batch (Admin)
 const deleteBatch = async (req, res) => {
   try {
@@ -115,7 +134,8 @@ const deleteBatch = async (req, res) => {
     // Protection logic: Block deletion if students have already paid and locked into this roster
     if (batch.enrolledStudents.length > 0) {
       return res.status(400).json({
-        message: "Cannot delete a batch that already has active enrolled students. Migrate users first.",
+        message:
+          "Cannot delete a batch that already has active enrolled students. Migrate users first.",
       });
     }
 

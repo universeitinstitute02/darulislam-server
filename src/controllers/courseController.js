@@ -35,7 +35,25 @@ const createCourse = async (req, res) => {
         typeof modules === "string" ? JSON.parse(modules) : modules;
     }
 
-    // If academic type, force courseType to "academic"
+    let finalPrice = price || 0;
+    let finalOldPrice = oldPrice || 0;
+
+    if (courseCategoryType === "academic" && subCategory) {
+      const Category = require("../models/Category");
+      const matchedCategory = await Category.findOne({
+        "subCategories._id": subCategory,
+      }).lean();
+      if (matchedCategory) {
+        const targetSub = matchedCategory.subCategories.find(
+          (sub) => sub._id.toString() === subCategory.toString(),
+        );
+        if (targetSub) {
+          finalPrice = targetSub.admissionFee || 0;
+          finalOldPrice = targetSub.oldAdmissionFee || 0;
+        }
+      }
+    }
+
     const finalCourseType =
       courseCategoryType === "academic"
         ? "academic"
@@ -50,8 +68,9 @@ const createCourse = async (req, res) => {
       instructor: req.user._id,
       duration,
       courseType: finalCourseType,
-      price: courseCategoryType === "academic" ? 0 : price || 0,
-      oldPrice: courseCategoryType === "academic" ? 0 : oldPrice || 0,
+      price: courseCategoryType === "academic" ? finalPrice : price || 0,
+      oldPrice:
+        courseCategoryType === "academic" ? finalOldPrice : oldPrice || 0,
       label: label || "",
       modules: parsedModules,
       details: parsedDetails,
@@ -63,14 +82,54 @@ const createCourse = async (req, res) => {
   }
 };
 
-// Get education page data with categorized course sections
+// Get education page data with categorized course sections & integrated upcoming batches
 const getEducationPageData = async (req, res) => {
   try {
-    const activeCategories = await Category.find({});
-
+    const activeCategories = await Category.find({ isActive: true }).lean();
     const allCourses = await Course.find({ isPublished: true })
       .sort({ createdAt: -1 })
       .lean();
+
+    const Batch = require("../models/Batch");
+    const courseIds = allCourses.map((c) => c._id);
+
+    const allUpcomingBatches = await Batch.find({
+      course: { $in: courseIds },
+      status: "upcoming",
+    })
+      .select(
+        "course batchName maxSeats availableSeats admissionStartDate classStartDate status",
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const updatedCategories = activeCategories.map((category) => {
+      if (!category.subCategories || !Array.isArray(category.subCategories))
+        return category;
+
+      const updatedSubCategories = category.subCategories.map((sub) => {
+        const targetCourseIds = allCourses
+          .filter(
+            (c) =>
+              c.subCategory && c.subCategory.toString() === sub._id.toString(),
+          )
+          .map((c) => c._id.toString());
+
+        const matchedBatch = allUpcomingBatches.find((b) =>
+          targetCourseIds.includes(b.course.toString()),
+        );
+
+        return {
+          ...sub,
+          upcomingBatch: matchedBatch || null,
+        };
+      });
+
+      return {
+        ...category,
+        subCategories: updatedSubCategories,
+      };
+    });
 
     // Section setup for fixed course groups
     const fixedSections = [
@@ -82,10 +141,9 @@ const getEducationPageData = async (req, res) => {
       { key: "short", label: "শর্ট কোর্স সমূহ" },
     ];
 
-    // Categorize courses by section config
+    // Categorize courses by section config (For general courses card layout)
     const fixedGroupedData = fixedSections.map((section) => {
       const matchedCourses = allCourses.filter((course) => {
-        // For "academic", match both courseType and courseCategoryType
         if (section.key === "academic") {
           return (
             String(course.courseType || "")
@@ -96,7 +154,6 @@ const getEducationPageData = async (req, res) => {
               .trim() === "academic"
           );
         }
-        // For other sections, match by courseType
         return (
           String(course.courseType || "")
             .toLowerCase()
@@ -108,15 +165,22 @@ const getEducationPageData = async (req, res) => {
         categoryName: section.label,
         category: section.label,
         type: "card",
-        courses: matchedCourses.slice(0, 10).map((c) => ({
-          id: c._id,
-          title: c.title,
-          price: c.price,
-          oldPrice: c.oldPrice,
-          label: c.label,
-          image: c.image,
-          details: c.details || {},
-        })),
+        courses: matchedCourses.slice(0, 10).map((c) => {
+          const matchedBatch = allUpcomingBatches.find(
+            (b) => b.course.toString() === c._id.toString(),
+          );
+
+          return {
+            id: c._id,
+            title: c.title,
+            price: c.price,
+            oldPrice: c.oldPrice,
+            label: c.label,
+            image: c.image,
+            details: c.details || {},
+            upcomingBatch: matchedBatch || null,
+          };
+        }),
       };
     });
 
@@ -126,7 +190,7 @@ const getEducationPageData = async (req, res) => {
     );
 
     res.status(200).json({
-      dynamicCategories: activeCategories || [],
+      dynamicCategories: updatedCategories,
       courseSections: validFixedGroups,
     });
   } catch (error) {
@@ -165,10 +229,29 @@ const updateCourse = async (req, res) => {
       updateData.courseType = String(courseType).toLowerCase().trim();
     }
 
-    // If academic, lock price, oldPrice, courseType
-    if (updateData.courseCategoryType === "academic") {
-      updateData.price = 0;
-      updateData.oldPrice = 0;
+    const currentSubCategory = updateData.subCategory || course.subCategory;
+    const currentCategoryType =
+      updateData.courseCategoryType || course.courseCategoryType;
+
+    if (currentCategoryType === "academic") {
+      if (currentSubCategory) {
+        const Category = require("../models/Category");
+        const matchedCategory = await Category.findOne({
+          "subCategories._id": currentSubCategory,
+        }).lean();
+        if (matchedCategory) {
+          const targetSub = matchedCategory.subCategories.find(
+            (sub) => sub._id.toString() === currentSubCategory.toString(),
+          );
+          if (targetSub) {
+            updateData.price = targetSub.admissionFee || 0;
+            updateData.oldPrice = targetSub.oldAdmissionFee || 0;
+          }
+        }
+      } else {
+        updateData.price = 0;
+        updateData.oldPrice = 0;
+      }
       updateData.courseType = "academic";
     }
 

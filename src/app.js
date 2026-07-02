@@ -10,7 +10,7 @@ const userRoutes = require("./routes/userRoutes");
 const classLinkRoutes = require("./routes/classLinkRoutes");
 const assignmentRoutes = require("./routes/assignmentRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-// const teacherNoticeRoutes = require("./routes/teacherNoticeRoutes");
+const noticeRoutes = require("./routes/noticeRoutes");
 const galleryRoutes = require("./routes/galleryRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const studentRoutes = require("./routes/studentRoutes");
@@ -19,6 +19,7 @@ const enrollmentRoutes = require("./routes/enrollmentRoutes");
 const batchRoutes = require("./routes/batchRoutes");
 const donationRoutes = require("./routes/donationRoutes");
 const quizRoutes = require("./routes/quizRoutes");
+
 const cors = require("cors");
 
 const app = express();
@@ -34,7 +35,7 @@ app.use(
       const allowedOrigins = [
         "http://localhost:3000",
         "https://darulislam2.vercel.app",
-        "https://darulislaminstitute.com",      
+        "https://darulislaminstitute.com",
         "https://www.darulislaminstitute.com",
       ];
 
@@ -70,6 +71,7 @@ app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/batches", batchRoutes);
 app.use("/api/donations", donationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/notices", noticeRoutes);
 app.use("/api/quiz", quizRoutes);
 
 app.get("/", (req, res) => {

@@ -17,6 +17,20 @@ const batchSchema = new mongoose.Schema(
       required: [true, "Please add a batch identifier or name"],
       trim: true,
     },
+    admissionStartDate: {
+      type: Date,
+      default: null,
+    },
+    classStartDate: {
+      type: Date,
+      default: null,
+    },
+    availableSeats: {
+      type: Number,
+      default: function () {
+        return this.maxSeats;
+      },
+    },
     maxSeats: {
       type: Number,
       required: [true, "Please specify maximum seat capacity"],
